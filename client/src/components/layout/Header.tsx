@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { motion, useScroll, useTransform } from "framer-motion";
 
@@ -11,6 +11,7 @@ export default function Header() {
     ["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0.8)"]
   );
   const [isScrolled, setIsScrolled] = useState(false);
+  const [location] = useLocation();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -19,6 +20,8 @@ export default function Header() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const isActive = (path: string) => location === path;
 
   return (
     <motion.header
@@ -29,21 +32,32 @@ export default function Header() {
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
         <Link href="/">
-          <a className="text-2xl font-bold text-white">SaaS<span className="text-primary">Hub</span></a>
+          <span className="text-2xl font-bold text-white cursor-pointer">
+            SaaS<span className="text-primary">Hub</span>
+          </span>
         </Link>
 
         <nav className="hidden md:flex items-center space-x-8">
-          <Link href="#product">
-            <a className="text-gray-300 hover:text-white transition-colors">Product</a>
+          <Link href="/resources">
+            <span className={`cursor-pointer transition-colors ${
+              isActive("/resources") ? "text-white" : "text-gray-300 hover:text-white"
+            }`}>
+              Resources
+            </span>
           </Link>
-          <Link href="#resources">
-            <a className="text-gray-300 hover:text-white transition-colors">Resources</a>
+          <Link href="/pricing">
+            <span className={`cursor-pointer transition-colors ${
+              isActive("/pricing") ? "text-white" : "text-gray-300 hover:text-white"
+            }`}>
+              Pricing
+            </span>
           </Link>
-          <Link href="#pricing">
-            <a className="text-gray-300 hover:text-white transition-colors">Pricing</a>
-          </Link>
-          <Link href="#blog">
-            <a className="text-gray-300 hover:text-white transition-colors">Blog</a>
+          <Link href="/blog">
+            <span className={`cursor-pointer transition-colors ${
+              isActive("/blog") ? "text-white" : "text-gray-300 hover:text-white"
+            }`}>
+              Blog
+            </span>
           </Link>
         </nav>
 
