@@ -1,15 +1,136 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { insertUserSchema, insertCategorySchema, insertTourPackageSchema, insertBookingSchema, insertReviewSchema } from "@shared/schema";
 
 export function registerRoutes(app: Express): Server {
-  // put application routes here
-  // prefix all routes with /api
+  // User routes
+  app.post('/api/users/signup', async (req: Request, res: Response) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
+      const user = await storage.createUser(userData);
+      res.json(user);
+    } catch (error) {
+      res.status(400).json({ error: 'Invalid user data' });
+    }
+  });
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Category routes
+  app.get('/api/categories', async (_req: Request, res: Response) => {
+    const categories = await storage.getCategories();
+    res.json(categories);
+  });
+
+  app.get('/api/categories/:id', async (req: Request, res: Response) => {
+    const category = await storage.getCategory(Number(req.params.id));
+    if (!category) return res.status(404).json({ error: 'Category not found' });
+    res.json(category);
+  });
+
+  app.post('/api/categories', async (req: Request, res: Response) => {
+    try {
+      const categoryData = insertCategorySchema.parse(req.body);
+      const category = await storage.createCategory(categoryData);
+      res.json(category);
+    } catch (error) {
+      res.status(400).json({ error: 'Invalid category data' });
+    }
+  });
+
+  // Tour Package routes
+  app.get('/api/tour-packages', async (_req: Request, res: Response) => {
+    const packages = await storage.getTourPackages();
+    res.json(packages);
+  });
+
+  app.get('/api/tour-packages/:id', async (req: Request, res: Response) => {
+    const package_ = await storage.getTourPackage(Number(req.params.id));
+    if (!package_) return res.status(404).json({ error: 'Tour package not found' });
+    res.json(package_);
+  });
+
+  app.get('/api/categories/:categoryId/tour-packages', async (req: Request, res: Response) => {
+    const packages = await storage.getTourPackagesByCategory(Number(req.params.categoryId));
+    res.json(packages);
+  });
+
+  app.post('/api/tour-packages', async (req: Request, res: Response) => {
+    try {
+      const packageData = insertTourPackageSchema.parse(req.body);
+      const package_ = await storage.createTourPackage(packageData);
+      res.json(package_);
+    } catch (error) {
+      res.status(400).json({ error: 'Invalid tour package data' });
+    }
+  });
+
+  // Booking routes
+  app.get('/api/bookings', async (_req: Request, res: Response) => {
+    const bookings = await storage.getBookings();
+    res.json(bookings);
+  });
+
+  app.get('/api/bookings/:id', async (req: Request, res: Response) => {
+    const booking = await storage.getBooking(Number(req.params.id));
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    res.json(booking);
+  });
+
+  app.get('/api/users/:userId/bookings', async (req: Request, res: Response) => {
+    const bookings = await storage.getUserBookings(Number(req.params.userId));
+    res.json(bookings);
+  });
+
+  app.post('/api/bookings', async (req: Request, res: Response) => {
+    try {
+      const bookingData = insertBookingSchema.parse(req.body);
+      const booking = await storage.createBooking(bookingData);
+      res.json(booking);
+    } catch (error) {
+      res.status(400).json({ error: 'Invalid booking data' });
+    }
+  });
+
+  app.patch('/api/bookings/:id/status', async (req: Request, res: Response) => {
+    try {
+      const { status } = req.body;
+      if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      const booking = await storage.updateBookingStatus(Number(req.params.id), status);
+      res.json(booking);
+    } catch (error) {
+      res.status(400).json({ error: 'Failed to update booking status' });
+    }
+  });
+
+  // Review routes
+  app.get('/api/reviews', async (_req: Request, res: Response) => {
+    const reviews = await storage.getReviews();
+    res.json(reviews);
+  });
+
+  app.get('/api/reviews/:id', async (req: Request, res: Response) => {
+    const review = await storage.getReview(Number(req.params.id));
+    if (!review) return res.status(404).json({ error: 'Review not found' });
+    res.json(review);
+  });
+
+  app.get('/api/tour-packages/:packageId/reviews', async (req: Request, res: Response) => {
+    const reviews = await storage.getPackageReviews(Number(req.params.packageId));
+    res.json(reviews);
+  });
+
+  app.post('/api/reviews', async (req: Request, res: Response) => {
+    try {
+      const reviewData = insertReviewSchema.parse(req.body);
+      const review = await storage.createReview(reviewData);
+      res.json(review);
+    } catch (error) {
+      res.status(400).json({ error: 'Invalid review data' });
+    }
+  });
 
   const httpServer = createServer(app);
-
   return httpServer;
 }
