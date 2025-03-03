@@ -2,16 +2,25 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertCategorySchema, insertTourPackageSchema, insertBookingSchema, insertReviewSchema } from "@shared/schema";
+import { ZodError } from "zod";
 
 export function registerRoutes(app: Express): Server {
   // User routes
   app.post('/api/users/signup', async (req: Request, res: Response) => {
     try {
+      console.log('Received user data:', req.body);
       const userData = insertUserSchema.parse(req.body);
+      console.log('Parsed user data:', userData);
       const user = await storage.createUser(userData);
       res.json(user);
     } catch (error) {
-      res.status(400).json({ error: 'Invalid user data' });
+      console.error('User creation error:', error);
+      if (error instanceof ZodError) {
+        console.error('ZodError details:', error.errors);
+        res.status(400).json({ error: 'Invalid user data', details: error.errors });
+      } else {
+        res.status(400).json({ error: 'Invalid user data' });
+      }
     }
   });
 
@@ -83,11 +92,21 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/bookings', async (req: Request, res: Response) => {
     try {
+      console.log('Received booking data:', req.body);
       const bookingData = insertBookingSchema.parse(req.body);
+      console.log('Parsed booking data:', bookingData);
       const booking = await storage.createBooking(bookingData);
       res.json(booking);
     } catch (error) {
-      res.status(400).json({ error: 'Invalid booking data' });
+      console.error('Booking creation error:', error);
+      if (error instanceof ZodError) {
+        console.error('ZodError details:', error.errors);
+        res.status(400).json({ error: 'Invalid booking data', details: error.errors });
+      } else {
+        const errorDetails = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Error details:', errorDetails);
+        res.status(400).json({ error: 'Invalid booking data', details: errorDetails });
+      }
     }
   });
 

@@ -65,10 +65,22 @@ export const insertTourPackageSchema = createInsertSchema(tourPackages).omit({
   id: true,
 });
 
-export const insertBookingSchema = createInsertSchema(bookings).omit({
-  id: true,
-  bookingDate: true,
-});
+export const insertBookingSchema = createInsertSchema(bookings)
+  .omit({
+    id: true,
+    bookingDate: true,
+    status: true, // Remove status since it has a default value
+  })
+  .extend({
+    startDate: z.preprocess((arg) => {
+      if (typeof arg === 'string' || arg instanceof Date) return new Date(arg);
+      return arg;
+    }, z.date()),
+    numberOfParticipants: z.number().int().positive(),
+    totalPrice: z.number().positive(),
+    userId: z.number().int().positive(),
+    packageId: z.number().int().positive()
+  });
 
 export const insertReviewSchema = createInsertSchema(reviews).omit({
   id: true,
