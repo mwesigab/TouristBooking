@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import passport from "./auth";
 import { isAuthenticated, isAdmin } from "./auth";
 import { hashSync } from "bcrypt";
+import { createPaymentIntent, retrievePaymentIntent } from './services/stripe';
 
 export function registerRoutes(app: Express): Server {
   // Authentication routes
@@ -173,23 +174,72 @@ export function registerRoutes(app: Express): Server {
     res.json(bookings);
   });
 
-  app.post('/api/bookings', async (req: Request, res: Response) => {
+  // Payment routes
+  app.post('/api/payments/create-intent', isAuthenticated, async (req: Request, res: Response) => {
     try {
-      console.log('Received booking data:', JSON.stringify(req.body, null, 2));
-      const bookingData = insertBookingSchema.parse(req.body);
-      console.log('Parsed booking data:', JSON.stringify(bookingData, null, 2));
-      const booking = await storage.createBooking(bookingData);
+      const { amount } = req.body;
+      if (!amount || typeof amount !== 'number' || amount <= 0) {
+        return res.status(400).json({ error: 'Invalid amount' });
+      }
+
+      const paymentIntent = await createPaymentIntent(amount);
+      res.json({
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id
+      });
+    } catch (error) {
+      console.error('Payment intent creation error:', error);
+      res.status(500).json({ error: 'Failed to create payment intent' });
+    }
+  });
+
+  app.post('/api/payments/verify/:paymentIntentId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { paymentIntentId } = req.params;
+      const paymentIntent = await retrievePaymentIntent(paymentIntentId);
+
+      if (paymentIntent.status !== 'succeeded') {
+        return res.status(400).json({ 
+          error: 'Payment not completed',
+          status: paymentIntent.status 
+        });
+      }
+
+      res.json({ success: true, status: paymentIntent.status });
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      res.status(500).json({ error: 'Failed to verify payment' });
+    }
+  });
+
+  // Update booking creation to handle payment
+  app.post('/api/bookings', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { paymentIntentId, ...bookingData } = req.body;
+
+      // Verify payment first
+      const paymentIntent = await retrievePaymentIntent(paymentIntentId);
+      if (paymentIntent.status !== 'succeeded') {
+        return res.status(400).json({ 
+          error: 'Payment must be completed before booking',
+          status: paymentIntent.status 
+        });
+      }
+
+      const validatedBooking = insertBookingSchema.parse(bookingData);
+      const booking = await storage.createBooking({
+        ...validatedBooking,
+        status: 'confirmed' // Auto-confirm since payment is completed
+      });
+
       res.json(booking);
     } catch (error) {
       console.error('Booking creation error:', error);
       if (error instanceof ZodError) {
-        const zodErrors = JSON.stringify(error.errors, null, 2);
-        console.error('ZodError details:', zodErrors);
         res.status(400).json({ error: 'Invalid booking data', details: error.errors });
       } else {
-        const errorDetails = error instanceof Error ? error.message : 'Unknown error';
-        console.error('Error details:', errorDetails);
-        res.status(400).json({ error: 'Invalid booking data', details: errorDetails });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        res.status(500).json({ error: 'Failed to create booking', details: errorMessage });
       }
     }
   });
