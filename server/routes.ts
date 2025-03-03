@@ -141,16 +141,64 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.patch('/api/bookings/:id/status', async (req: Request, res: Response) => {
+  app.patch('/api/bookings/:id', isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const { status } = req.body;
-      if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
-        return res.status(400).json({ error: 'Invalid status' });
+      const bookingId = Number(req.params.id);
+      const booking = await storage.getBooking(bookingId);
+
+      if (!booking) {
+        return res.status(404).json({ error: 'Booking not found' });
       }
-      const booking = await storage.updateBookingStatus(Number(req.params.id), status);
-      res.json(booking);
+
+      // Only allow users to modify their own bookings (unless admin)
+      if (booking.userId !== (req.user as any).id && (req.user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Not authorized to modify this booking' });
+      }
+
+      const allowedUpdates = ['numberOfParticipants', 'startDate', 'status'];
+      const updates = Object.keys(req.body).filter(key => allowedUpdates.includes(key));
+
+      if (updates.length === 0) {
+        return res.status(400).json({ error: 'No valid fields to update' });
+      }
+
+      // Additional validation for status changes
+      if (req.body.status && !['pending', 'confirmed', 'cancelled'].includes(req.body.status)) {
+        return res.status(400).json({ error: 'Invalid status value' });
+      }
+
+      const updatedBooking = await storage.updateBooking(bookingId, req.body);
+      res.json(updatedBooking);
     } catch (error) {
-      res.status(400).json({ error: 'Failed to update booking status' });
+      console.error('Booking update error:', error);
+      res.status(500).json({ error: 'Failed to update booking' });
+    }
+  });
+
+  app.delete('/api/bookings/:id', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const bookingId = Number(req.params.id);
+      const booking = await storage.getBooking(bookingId);
+
+      if (!booking) {
+        return res.status(404).json({ error: 'Booking not found' });
+      }
+
+      // Only allow users to delete their own bookings (unless admin)
+      if (booking.userId !== (req.user as any).id && (req.user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Not authorized to delete this booking' });
+      }
+
+      // Don't allow deletion of confirmed bookings
+      if (booking.status === 'confirmed') {
+        return res.status(400).json({ error: 'Cannot delete confirmed bookings' });
+      }
+
+      await storage.deleteBooking(bookingId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Booking deletion error:', error);
+      res.status(500).json({ error: 'Failed to delete booking' });
     }
   });
 
