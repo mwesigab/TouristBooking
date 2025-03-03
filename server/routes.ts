@@ -92,15 +92,16 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/bookings', async (req: Request, res: Response) => {
     try {
-      console.log('Received booking data:', req.body);
+      console.log('Received booking data:', JSON.stringify(req.body, null, 2));
       const bookingData = insertBookingSchema.parse(req.body);
-      console.log('Parsed booking data:', bookingData);
+      console.log('Parsed booking data:', JSON.stringify(bookingData, null, 2));
       const booking = await storage.createBooking(bookingData);
       res.json(booking);
     } catch (error) {
       console.error('Booking creation error:', error);
       if (error instanceof ZodError) {
-        console.error('ZodError details:', error.errors);
+        const zodErrors = JSON.stringify(error.errors, null, 2);
+        console.error('ZodError details:', zodErrors);
         res.status(400).json({ error: 'Invalid booking data', details: error.errors });
       } else {
         const errorDetails = error instanceof Error ? error.message : 'Unknown error';
