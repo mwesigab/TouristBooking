@@ -3,16 +3,38 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertCategorySchema, insertTourPackageSchema, insertBookingSchema, insertReviewSchema } from "@shared/schema";
 import { ZodError } from "zod";
+import passport from "./auth";
+import { isAuthenticated, isAdmin } from "./auth";
+import { hashSync } from "bcrypt";
 
 export function registerRoutes(app: Express): Server {
-  // User routes
-  app.post('/api/users/signup', async (req: Request, res: Response) => {
+  // Authentication routes
+  app.post('/api/auth/login', passport.authenticate('local'), (req: Request, res: Response) => {
+    res.json({ user: req.user });
+  });
+
+  app.post('/api/auth/logout', (req: Request, res: Response) => {
+    req.logout(() => {
+      res.json({ message: 'Logged out successfully' });
+    });
+  });
+
+  // Modified signup route to hash password
+  app.post('/api/auth/signup', async (req: Request, res: Response) => {
     try {
       console.log('Received user data:', req.body);
       const userData = insertUserSchema.parse(req.body);
-      console.log('Parsed user data:', userData);
-      const user = await storage.createUser(userData);
-      res.json(user);
+
+      // Hash password before storing
+      const hashedPassword = hashSync(userData.password, 10);
+      const userToCreate = { ...userData, password: hashedPassword };
+
+      console.log('Creating user with hashed password');
+      const user = await storage.createUser(userToCreate);
+
+      // Remove password from response
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
     } catch (error) {
       console.error('User creation error:', error);
       if (error instanceof ZodError) {
@@ -24,7 +46,24 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Category routes
+  // Protected routes - require authentication
+  app.get('/api/auth/profile', isAuthenticated, (req: Request, res: Response) => {
+    const { password, ...userWithoutPassword } = req.user as any;
+    res.json(userWithoutPassword);
+  });
+
+  // Admin-only routes
+  app.post('/api/categories', isAdmin, async (req: Request, res: Response) => {
+    try {
+      const categoryData = insertCategorySchema.parse(req.body);
+      const category = await storage.createCategory(categoryData);
+      res.json(category);
+    } catch (error) {
+      res.status(400).json({ error: 'Invalid category data' });
+    }
+  });
+
+  // Public routes
   app.get('/api/categories', async (_req: Request, res: Response) => {
     const categories = await storage.getCategories();
     res.json(categories);
@@ -36,15 +75,6 @@ export function registerRoutes(app: Express): Server {
     res.json(category);
   });
 
-  app.post('/api/categories', async (req: Request, res: Response) => {
-    try {
-      const categoryData = insertCategorySchema.parse(req.body);
-      const category = await storage.createCategory(categoryData);
-      res.json(category);
-    } catch (error) {
-      res.status(400).json({ error: 'Invalid category data' });
-    }
-  });
 
   // Tour Package routes
   app.get('/api/tour-packages', async (_req: Request, res: Response) => {
