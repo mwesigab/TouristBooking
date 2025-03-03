@@ -9,6 +9,7 @@ import {
   type Review, type InsertReview
 } from "@shared/schema";
 
+// Update IStorage interface
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -25,6 +26,9 @@ export interface IStorage {
   getTourPackage(id: number): Promise<TourPackage | undefined>;
   getTourPackagesByCategory(categoryId: number): Promise<TourPackage[]>;
   createTourPackage(tourPackage: InsertTourPackage): Promise<TourPackage>;
+  updateTourPackage(id: number, updates: Partial<TourPackage>): Promise<TourPackage>;
+  deleteTourPackage(id: number): Promise<void>;
+  getActiveBookingsForPackage(packageId: number): Promise<Booking[]>;
 
   // Booking operations
   getBookings(): Promise<Booking[]>;
@@ -91,6 +95,27 @@ export class DatabaseStorage implements IStorage {
   async createTourPackage(tourPackage: InsertTourPackage): Promise<TourPackage> {
     const [newPackage] = await db.insert(tourPackages).values(tourPackage).returning();
     return newPackage;
+  }
+
+  async updateTourPackage(id: number, updates: Partial<TourPackage>): Promise<TourPackage> {
+    const [updatedPackage] = await db
+      .update(tourPackages)
+      .set(updates)
+      .where(eq(tourPackages.id, id))
+      .returning();
+    return updatedPackage;
+  }
+
+  async deleteTourPackage(id: number): Promise<void> {
+    await db.delete(tourPackages).where(eq(tourPackages.id, id));
+  }
+
+  async getActiveBookingsForPackage(packageId: number): Promise<Booking[]> {
+    return db
+      .select()
+      .from(bookings)
+      .where(eq(bookings.packageId, packageId))
+      .where(eq(bookings.status, 'confirmed'));
   }
 
   // Booking operations

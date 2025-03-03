@@ -93,13 +93,66 @@ export function registerRoutes(app: Express): Server {
     res.json(packages);
   });
 
-  app.post('/api/tour-packages', async (req: Request, res: Response) => {
+  // Admin only routes for tour package management
+  app.post('/api/tour-packages', isAdmin, async (req: Request, res: Response) => {
     try {
       const packageData = insertTourPackageSchema.parse(req.body);
       const package_ = await storage.createTourPackage(packageData);
       res.json(package_);
     } catch (error) {
-      res.status(400).json({ error: 'Invalid tour package data' });
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: 'Invalid tour package data', details: error.errors });
+      } else {
+        res.status(400).json({ error: 'Failed to create tour package' });
+      }
+    }
+  });
+
+  app.patch('/api/tour-packages/:id', isAdmin, async (req: Request, res: Response) => {
+    try {
+      const packageId = Number(req.params.id);
+      const package_ = await storage.getTourPackage(packageId);
+
+      if (!package_) {
+        return res.status(404).json({ error: 'Tour package not found' });
+      }
+
+      const allowedUpdates = ['name', 'description', 'price', 'duration', 'location', 'maxParticipants', 'imageUrl'];
+      const updates = Object.keys(req.body).filter(key => allowedUpdates.includes(key));
+
+      if (updates.length === 0) {
+        return res.status(400).json({ error: 'No valid fields to update' });
+      }
+
+      const updatedPackage = await storage.updateTourPackage(packageId, req.body);
+      res.json(updatedPackage);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update tour package' });
+    }
+  });
+
+  app.delete('/api/tour-packages/:id', isAdmin, async (req: Request, res: Response) => {
+    try {
+      const packageId = Number(req.params.id);
+      const package_ = await storage.getTourPackage(packageId);
+
+      if (!package_) {
+        return res.status(404).json({ error: 'Tour package not found' });
+      }
+
+      // Check if there are any active bookings for this package
+      const activeBookings = await storage.getActiveBookingsForPackage(packageId);
+      if (activeBookings.length > 0) {
+        return res.status(400).json({ 
+          error: 'Cannot delete tour package with active bookings',
+          activeBookings: activeBookings.length
+        });
+      }
+
+      await storage.deleteTourPackage(packageId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete tour package' });
     }
   });
 
