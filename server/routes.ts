@@ -143,11 +143,35 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/reviews', async (req: Request, res: Response) => {
     try {
-      const reviewData = insertReviewSchema.parse(req.body);
-      const review = await storage.createReview(reviewData);
+      console.log('Received review data:', JSON.stringify(req.body, null, 2));
+      const validationResult = insertReviewSchema.safeParse(req.body);
+
+      if (!validationResult.success) {
+        console.error('Validation failed:', JSON.stringify(validationResult.error.errors, null, 2));
+        return res.status(400).json({
+          error: 'Invalid review data',
+          details: validationResult.error.errors
+        });
+      }
+
+      // Additional validation check
+      if (validationResult.data.rating < 1 || validationResult.data.rating > 5) {
+        return res.status(400).json({
+          error: 'Invalid review data',
+          details: [{
+            code: 'custom',
+            path: ['rating'],
+            message: 'Rating must be between 1 and 5'
+          }]
+        });
+      }
+
+      const review = await storage.createReview(validationResult.data);
       res.json(review);
     } catch (error) {
-      res.status(400).json({ error: 'Invalid review data' });
+      console.error('Review creation error:', error);
+      const errorDetails = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ error: 'Failed to create review', details: errorDetails });
     }
   });
 

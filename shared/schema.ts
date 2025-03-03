@@ -85,6 +85,11 @@ export const insertBookingSchema = createInsertSchema(bookings)
 export const insertReviewSchema = createInsertSchema(reviews).omit({
   id: true,
   createdAt: true,
+}).extend({
+  rating: z.number().int().min(1, "Rating must be between 1 and 5").max(5, "Rating must be between 1 and 5"),
+  userId: z.number().int().positive("User ID must be a positive number"),
+  packageId: z.number().int().positive("Package ID must be a positive number"),
+  comment: z.string().min(1, "Comment is required").max(500, "Comment must not exceed 500 characters")
 });
 
 // Types
